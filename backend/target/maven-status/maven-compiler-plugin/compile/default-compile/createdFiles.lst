@@ -1,0 +1,6 @@
+com\tatahuy\report\ReportBackendApplication.class
+com\tatahuy\report\controller\ReportController.class
+com\tatahuy\report\model\QueryRequest.class
+com\tatahuy\report\service\QueryService.class
+com\tatahuy\report\config\CorsConfig$1.class
+com\tatahuy\report\config\CorsConfig.class
