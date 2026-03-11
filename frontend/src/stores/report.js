@@ -1,18 +1,26 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import * as api from '../services/api'
 
 export const useReportStore = defineStore('report', () => {
   // State
-  const projects = ref([])
+  const projects        = ref([])
   const selectedProject = ref(null)
-  const dateFrom = ref('')
-  const dateTo = ref('')
-  const progressData = ref([])
-  const totalData = ref(null)
-  const loading = ref(false)
-  const error = ref(null)
-  const authenticated = ref(false)
+  const dateFrom        = ref('')
+  const dateTo          = ref('')
+  const progressData    = ref([])
+  const totalData       = ref(null)
+  const loading         = ref(false)
+  const error           = ref(null)
+  const authenticated   = ref(false)
+
+  // Extra info project — diisi otomatis saat project dipilih
+  const extraInfo = ref({
+    kodeProyek:    '',   // robprj_paket.value
+    namaSubProyek: '',   // c_project.subName
+    lokasi:        '',   // diisi manual di form jika diperlukan
+    noPO:          '',   // diisi manual di form jika diperlukan
+  })
 
   // Actions
   const setAuthCredentials = (username, password) => {
@@ -22,7 +30,7 @@ export const useReportStore = defineStore('report', () => {
 
   const loadProjects = async () => {
     loading.value = true
-    error.value = null
+    error.value   = null
     try {
       projects.value = await api.fetchProjects()
     } catch (err) {
@@ -33,6 +41,30 @@ export const useReportStore = defineStore('report', () => {
     }
   }
 
+  // Dipanggil saat user memilih project dari dropdown
+  const selectProject = async (projectId) => {
+    selectedProject.value = projectId
+
+    // Reset extraInfo dulu
+    extraInfo.value = { kodeProyek: '', namaSubProyek: '', lokasi: '', noPO: '' }
+
+    if (!projectId) return
+
+    try {
+      const detail = await api.fetchProjectDetail(projectId)
+      if (detail) {
+        extraInfo.value.kodeProyek    = detail.kodeProyek
+        extraInfo.value.namaSubProyek = detail.namaSubProyek
+        extraInfo.value.lokasi        = detail.lokasi
+        extraInfo.value.noPO          = detail.noPO
+        // lokasi & noPO tetap diisi manual dari form
+      }
+    } catch (err) {
+      console.error('Gagal memuat detail project:', err)
+      // Tidak set error global — detail gagal tidak halangi user lanjut
+    }
+  }
+
   const loadReportData = async () => {
     if (!selectedProject.value || !dateFrom.value || !dateTo.value) {
       error.value = 'Pilih project dan tanggal terlebih dahulu'
@@ -40,10 +72,9 @@ export const useReportStore = defineStore('report', () => {
     }
 
     loading.value = true
-    error.value = null
-    
+    error.value   = null
+
     try {
-      // Load progress data
       const progress = await api.executeProgressQuery(
         selectedProject.value,
         dateFrom.value,
@@ -51,7 +82,6 @@ export const useReportStore = defineStore('report', () => {
       )
       progressData.value = progress
 
-      // Load total data
       const total = await api.executeTotalQuery(
         selectedProject.value,
         dateFrom.value,
@@ -68,8 +98,8 @@ export const useReportStore = defineStore('report', () => {
 
   const clearReport = () => {
     progressData.value = []
-    totalData.value = null
-    error.value = null
+    totalData.value    = null
+    error.value        = null
   }
 
   return {
@@ -83,10 +113,12 @@ export const useReportStore = defineStore('report', () => {
     loading,
     error,
     authenticated,
-    
+    extraInfo,
+
     // Actions
     setAuthCredentials,
     loadProjects,
+    selectProject,    // ← ganti dari set selectedProject langsung
     loadReportData,
     clearReport
   }

@@ -15,9 +15,6 @@ public class ReportController {
     @Autowired
     private QueryService queryService;
 
-    // =============================================
-    // Basic Auth check (sama seperti Node.js versi)
-    // =============================================
     private boolean isAuthorized(String authHeader) {
         return authHeader != null && authHeader.startsWith("Basic ");
     }
@@ -79,6 +76,32 @@ public class ReportController {
             return ResponseEntity.ok(row);
         } catch (Exception e) {
             System.err.println("Error executing total query: " + e.getMessage());
+            return ResponseEntity.status(500).body(errorDetail("Database query failed", e.getMessage()));
+        }
+    }
+
+    // =============================================
+    // POST /api/query/projectdetail
+    // =============================================
+    @PostMapping("/api/query/projectdetail")
+    public ResponseEntity<?> projectDetail(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody Map<String, String> body) {
+
+        if (!isAuthorized(authHeader)) {
+            return ResponseEntity.status(401).body(error("Unauthorized"));
+        }
+
+        String projectId = body.get("projectId");
+        if (projectId == null || projectId.isBlank()) {
+            return ResponseEntity.status(400).body(error("projectId is required"));
+        }
+
+        try {
+            Map<String, Object> detail = queryService.getProjectDetail(projectId);
+            return ResponseEntity.ok(detail);
+        } catch (Exception e) {
+            System.err.println("Error fetching project detail: " + e.getMessage());
             return ResponseEntity.status(500).body(errorDetail("Database query failed", e.getMessage()));
         }
     }

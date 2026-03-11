@@ -43,7 +43,9 @@
                   @input="showDropdown = true"
                   placeholder="Ketik untuk mencari project..."
                   class="search-input"
+                  :class="{ loading: loadingDetail }"
                 />
+                <span v-if="loadingDetail" class="detail-loading">⏳ Memuat detail...</span>
                 <div v-if="showDropdown" class="dropdown">
                   <div
                     v-for="project in filteredProjects"
@@ -97,7 +99,9 @@
                   @input="showDropdown = true"
                   placeholder="Ketik untuk mencari project..."
                   class="search-input"
+                  :class="{ loading: loadingDetail }"
                 />
+                <span v-if="loadingDetail" class="detail-loading">⏳ Memuat detail...</span>
                 <div v-if="showDropdown" class="dropdown">
                   <div
                     v-for="project in filteredProjects"
@@ -145,7 +149,7 @@
         <div v-if="reportStore.progressData?.length" class="export-bar">
           <span class="export-label">Export:</span>
 
-          <button class="btn-export btn-pdf"   :disabled="exporting" @click="handleExport('pdf')">
+          <button class="btn-export btn-pdf" :disabled="exporting" @click="handleExport('pdf')">
             <span class="btn-icon">📄</span> PDF
             <span v-if="exporting === 'pdf'" class="btn-spinner" />
           </button>
@@ -155,7 +159,7 @@
             <span v-if="exporting === 'excel'" class="btn-spinner" />
           </button>
 
-          <button class="btn-export btn-word"  :disabled="exporting" @click="handleExport('word')">
+          <button class="btn-export btn-word" :disabled="exporting" @click="handleExport('word')">
             <span class="btn-icon">📝</span> Word
             <span v-if="exporting === 'word'" class="btn-spinner" />
           </button>
@@ -186,7 +190,7 @@ import { exportToPDF, exportToExcel, exportToWord, printReport } from '../servic
 
 const reportStore = useReportStore()
 
-// ── Tab ─────────────────────────────────────────────────────────────────────
+// ── Tab ──────────────────────────────────────────────────────────────────────
 const activeTab = ref('weekly')
 
 function switchTab(tab) {
@@ -198,12 +202,14 @@ function switchTab(tab) {
   calFrom.value = ''
   calTo.value   = ''
   monthlyDateError.value = ''
+  dateError.value = ''
 }
 
-// ── Shared project search ────────────────────────────────────────────────────
+// ── Project search ───────────────────────────────────────────────────────────
 const searchQuery         = ref('')
 const showDropdown        = ref(false)
 const selectedProjectName = ref('')
+const loadingDetail       = ref(false)   // indikator saat fetchProjectDetail jalan
 
 const filteredProjects = computed(() => {
   if (!searchQuery.value.trim()) return reportStore.projects
@@ -229,24 +235,34 @@ const handleBlur = () => {
   }, 200)
 }
 
-const selectProject = (project) => {
-  reportStore.selectedProject = project.id
+// ✅ FIX: panggil reportStore.selectProject() agar fetchProjectDetail ikut jalan
+const selectProject = async (project) => {
   searchQuery.value = project.name
   selectedProjectName.value = project.name
   showDropdown.value = false
   reportStore.clearReport()
+
+  loadingDetail.value = true
+  try {
+    await reportStore.selectProject(project.id)
+  } finally {
+    loadingDetail.value = false
+  }
 }
 
 watch(() => reportStore.projects, (list) => {
   if (list.length > 0 && reportStore.selectedProject) {
     const sel = list.find(p => p.id === reportStore.selectedProject)
-    if (sel) { searchQuery.value = sel.name; selectedProjectName.value = sel.name }
+    if (sel) {
+      searchQuery.value = sel.name
+      selectedProjectName.value = sel.name
+    }
   }
 }, { immediate: true })
 
 // ── Monthly filter ───────────────────────────────────────────────────────────
-const calFrom = ref('')
-const calTo   = ref('')
+const calFrom          = ref('')
+const calTo            = ref('')
 const monthlyDateError = ref('')
 
 const validateMonthlyDates = () => {
@@ -262,7 +278,7 @@ const validateMonthlyDates = () => {
   }
 }
 
-// ── Date validation ──────────────────────────────────────────────────────────
+// ── Weekly date validation ───────────────────────────────────────────────────
 const dateError = ref('')
 
 const validateDates = () => {
@@ -279,7 +295,7 @@ const validateDates = () => {
 }
 
 // ── Can Generate ─────────────────────────────────────────────────────────────
-const canGenerateWeekly  = computed(() =>
+const canGenerateWeekly = computed(() =>
   reportStore.selectedProject && reportStore.dateFrom && reportStore.dateTo && !dateError.value
 )
 const canGenerateMonthly = computed(() =>
@@ -299,17 +315,18 @@ const handleGenerate = async () => {
 const exporting   = ref(null)
 const exportError = ref('')
 
+// ✅ FIX: ambil projectName dari selectedProjectName, extraInfo dari reportStore.extraInfo
 const exportArgs = () => [
   reportStore.progressData,
   reportStore.totalData,
-  reportStore.projectName,
+  selectedProjectName.value,
   reportStore.dateFrom,
   reportStore.dateTo,
   {
-    kodeProyek:    reportStore.kodeProyek    ?? '',
-    namaSubProyek: reportStore.namaSubProyek ?? '',
-    lokasi:        reportStore.lokasi        ?? '',
-    noPO:          reportStore.noPO          ?? '',
+    kodeProyek:    reportStore.extraInfo?.kodeProyek    ?? '',
+    namaSubProyek: reportStore.extraInfo?.namaSubProyek ?? '',
+    lokasi:        reportStore.extraInfo?.lokasi        ?? '',
+    noPO:          reportStore.extraInfo?.noPO          ?? '',
   },
   activeTab.value === 'monthly',
 ]
@@ -382,9 +399,7 @@ async function handleExport(type) {
   margin-bottom: -2px;
 }
 
-.tab-btn:hover:not(.active) {
-  background: #d1d5f7;
-}
+.tab-btn:hover:not(.active) { background: #d1d5f7; }
 
 .tab-btn.active {
   background: #fff;
@@ -403,14 +418,8 @@ async function handleExport(type) {
 }
 
 /* ── Filter ──────────────────────────────────────────────────────────────── */
-.filter-container {
-  margin-bottom: 1.5rem;
-}
-
-.filter-container h3 {
-  margin-bottom: 1rem;
-  color: #333;
-}
+.filter-container { margin-bottom: 1.5rem; }
+.filter-container h3 { margin-bottom: 1rem; color: #333; }
 
 .filter-form {
   display: grid;
@@ -435,7 +444,6 @@ async function handleExport(type) {
 .searchable-select { position: relative; width: 100%; }
 
 .search-input,
-.form-group select,
 .form-group input[type="date"] {
   width: 100%;
   padding: 0.75rem;
@@ -447,10 +455,21 @@ async function handleExport(type) {
 }
 
 .search-input:focus,
-.form-group select:focus,
 .form-group input[type="date"]:focus {
   outline: none;
   border-color: #667eea;
+}
+
+.search-input.loading {
+  border-color: #f0a500;
+  background: #fffdf0;
+}
+
+.detail-loading {
+  display: block;
+  font-size: 0.75rem;
+  color: #f0a500;
+  margin-top: 3px;
 }
 
 .dropdown {
@@ -550,7 +569,7 @@ async function handleExport(type) {
   white-space: nowrap;
 }
 .btn-export:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
-.btn-export:active:not(:disabled){ transform: translateY(0); }
+.btn-export:active:not(:disabled) { transform: translateY(0); }
 .btn-export:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-pdf   { background: #e53935; }
 .btn-excel { background: #1e8e3e; }
@@ -574,5 +593,4 @@ async function handleExport(type) {
   color: #c00;
   margin-left: 0.5rem;
 }
-
 </style>
