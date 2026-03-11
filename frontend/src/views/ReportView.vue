@@ -1,8 +1,6 @@
 <template>
   <div class="report-view">
-    <LoginForm v-if="!reportStore.authenticated" />
-
-    <div v-else class="main-content">
+    <div class="main-content">
       <header class="app-header">
         <h1>Activity Report</h1>
         <p class="subtitle">Sistem Monitoring Progress Pekerjaan</p>
@@ -177,14 +175,18 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useReportStore } from '../stores/report'
-import LoginForm from '../components/LoginForm.vue'
 import ReportTable from '../components/ReportTable.vue'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import { exportToPDF, exportToExcel, exportToWord, printReport } from '../services/export'
 
 const reportStore = useReportStore()
+
+// Load projects otomatis saat halaman dibuka
+onMounted(async () => {
+  await reportStore.loadProjects()
+})
 
 // ── Tab ─────────────────────────────────────────────────────────────────────
 const activeTab = ref('weekly')
